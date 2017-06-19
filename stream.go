@@ -42,8 +42,8 @@ var (
 	ErrOutputUnavailable = errors.New("portmidi: output is unavailable")
 )
 
-// Channel represent a MIDI channel. It should be between 1-16.
-type Channel int
+// Channel represents a MIDI channel. It should be between 0-15 inclusive.
+type Channel uint8
 
 // Event represents a MIDI event.
 type Event struct {
@@ -149,12 +149,22 @@ func (s *Stream) WriteSysEx(when Timestamp, msg string) error {
 	return s.WriteSysExBytes(when, buf)
 }
 
-// SetChannelMask filters incoming stream based on channel.
-// In order to filter from more than a single channel, or multiple channels.
-// s.SetChannelMask(Channel(1) | Channel(10)) will both filter input
-// from channel 1 and 10.
-func (s *Stream) SetChannelMask(mask int) error {
+// SetChannelMask filters incoming stream based on a channel bitmask.
+// mask is a bitfield, where the nth bit will filter the nth channel, e.g.
+// s.SetChannelMask(1 << 1 | 1 << 10) will filter input to only
+// channels 1 and 10.
+func (s *Stream) SetChannelMask(mask uint16) error {
 	return convertToError(C.Pm_SetChannelMask(unsafe.Pointer(s.pmStream), C.int(mask)))
+}
+
+// FilterChannels filters incoming stream based on a set of channels.
+// It is a convenience wrapper around SetChannelMask.
+func (s *Stream) FilterChannels(chs... Channel) error {
+	var m uint16
+	for _, ch := range chs {
+		m |= 1 << ch
+	}
+	return s.SetChannelMask(m)
 }
 
 // Reads from the input stream, the max number events to be read are
